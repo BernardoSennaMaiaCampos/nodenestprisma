@@ -1,0 +1,46 @@
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
+import { Request } from 'express';
+import { CHAVE_PUBLICA } from './decorators/public.decorator';
+import { UsuarioAutenticado } from './interfaces/usuario-autenticado.interface';
+import { ROLE_USER } from './interfaces/role.enum';
+import { DuracaoToken } from './interfaces/duracao-token.type';
+import { JwtModuleOptions } from '@nestjs/jwt';
+
+
+@Injectable()
+export class JwtAuthGuard implements CanActivate {
+constructor(
+private readonly jwt: JwtService,
+private readonly config: ConfigService,
+private readonly reflector: Reflector,
+) {}
+async canActivate(contexto: ExecutionContext): Promise<boolean> {
+const ehPublica = this.reflector.getAllAndOverride<boolean>(CHAVE_PUBLICA, [
+contexto.getHandler(),
+contexto.getClass(),
+]);
+if (ehPublica) return true;
+const requisicao = contexto.switchToHttp().getRequest();
+const token = this.extrairToken(requisicao);
+if (!token) {
+throw new UnauthorizedException('Token nao informado. Use o cabecalho Authorization:Bearer <token>');
+}
+try {
+requisicao.user = await this.jwt.verifyAsync<UsuarioAutenticado>(token, {
+secret: this.config.getOrThrow<string>('JWT_SECRET'),
+});
+} catch {
+throw new UnauthorizedException('Token invalido ou expirado');
+}
+return true;
+}
+private extrairToken(requisicao: Request): string | undefined {
+const cabecalho = requisicao.headers.authorization;
+if (!cabecalho) return undefined;
+const [tipo, token] = cabecalho.split(' ');
+return tipo === 'Bearer' ? token : undefined;
+}
+}

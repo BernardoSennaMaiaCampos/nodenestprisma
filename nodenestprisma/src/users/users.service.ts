@@ -1,3 +1,13 @@
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import * as bcrypt from 'bcrypt';
+import { paraDataUtc } from '../common/helpers/para-data-utc';
+import { Prisma } from '@prisma/client';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UsuarioAutenticado } from '../auth/interfaces/usuario-autenticado.interface';
+import { garantirDonoOuAdmin, ehAdmin } from '../common/helpers/propriedade';
+
 const CUSTO_BCRYPT = 12;
 
 @Injectable()
@@ -71,5 +81,13 @@ export class UsersService {
 
     return erro instanceof Error ? erro : new Error(String(erro));
   }
+
+
+async atualizar(id: number, dto: UpdateUserDto, solicitante: UsuarioAutenticado) {
+garantirDonoOuAdmin(solicitante, id);
+if (dto.role !== undefined && !ehAdmin(solicitante)) {
+throw new ForbiddenException(
+'Somente um administrador pode alterar o perfil de acesso',
+);
 }
 
